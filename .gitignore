@@ -1,0 +1,16 @@
+# Maven 构建产物
+target/
+
+# IntelliJ IDEA
+.idea/
+*.iml
+*.ipr
+*.iws
+out/
+
+# 实验原始日志属于阶段3交付物，如需纳入版本管理请去掉下面一行
+*.log
+
+# 系统文件
+.DS_Store
+Thumbs.db
