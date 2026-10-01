@@ -22,21 +22,14 @@ package edu.scut.nqueens.blackboard;
 import edu.scut.nqueens.common.PartialSolution;
 
 /**
- * 解完整性判定知识源（KS_SolutionCheck）：判断黑板上当前的状态是否已经构成一个完整解，
- * 若是则把解写入结果区，并推动搜索继续（或回退）。
+ * 解完整性判定知识源（KS_SolutionCheck）。
  *
- * <p><b>本知识源是"多条规则共同收敛"的体现：</b>它不负责校验列或对角线
- * （那是 KS_ColCheck 与 KS_DiagCheck 的事），它只关心"深度是否已达 N"。
- * 如果前面的检查没通过，候选根本不会走到这一步——但这一点不是靠"调用关系"保证的，
- * 而是靠黑板上的状态约定保证的：<b>只有通过检查的候选才会被推进深度</b>。
- * 把这句话讲清楚，就回答了答辩里"知识源不通信，怎么保证顺序正确"的追问。
+ * <p>它不校验列或对角线（那是另外两个知识源的规则），只关心"是否已放满 N 行"；
+ * 放满就把它转成 {@code Solution} 写入结果区。
  *
- * <p>TODO（两个方法都要实现）：
- * <ul>
- *   <li>{@link #canHandle}：只看黑板当前状态判断"当前深度是否已达 N 且有未收集的完整路径"；</li>
- *   <li>{@link #execute}：构造 {@code Solution} 写入结果区，并把黑板状态推进到下一个候选
- *       （推进 / 回退的具体做法取决于你们在 README 里定下的黑板求解形态）。</li>
- * </ul>
+ * <p>之所以走到这里的必定是合法解，不是因为它调用过谁，而是因为
+ * <b>黑板上只可能存在已通过剪枝的路径</b>——不合法的路径根本不会被放上来。
+ * 这是"知识源互不通信，却仍能保证结果正确"的关键。
  */
 public final class KS_SolutionCheck implements KnowledgeSource {
 

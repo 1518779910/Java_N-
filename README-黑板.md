@@ -61,9 +61,9 @@ graph TD
 | 图中组件 | 职责 | 代码 |
 |---|---|---|
 | 黑板存储区 (Shared State) | 全系统唯一的共享状态；知识源通过它间接交互 | `BlackboardState.java` |
-| KS_ColCheck（列冲突检查知识源） | 只判"列是否重复"这一条规则 | `KS_ColCheck.java` |
-| KS_DiagCheck（对角线冲突检查知识源） | 只判"两条对角线是否重复"这一条规则 | `KS_DiagCheck.java` |
-| KS_SolutionCheck（解完整性判定知识源） | 只判"是否已放满 N 行并收集解" | `KS_SolutionCheck.java` |
+| KS_ColCheck（列冲突检查知识源） | **扩展**：把栈顶路径展开成下一行的候选 | `KS_ColCheck.java` |
+| KS_DiagCheck（对角线冲突检查知识源） | **死路检测**：路径已被约束堵死时丢弃 | `KS_DiagCheck.java` |
+| KS_SolutionCheck（解完整性判定知识源） | **收集**：放满 N 行则写入结果区 | `KS_SolutionCheck.java` |
 | 控制器 / 调度器 | 调度触发顺序、判定停机、不含任何求解规则 | `BlackboardController.java` |
 
 | 图中连接器 | 含义 | 代码体现 |
@@ -71,26 +71,36 @@ graph TD
 | 监控与调度信号 | 控制器 → 知识源（单向） | 控制器持有 `List<KnowledgeSource>` 并调用其 `canHandle` / `execute` |
 | Data Access 读写状态 | 知识源 ↔ 黑板（双向） | `KnowledgeSource` 接口参数为 `BlackboardState` |
 
-## 四、需要你们先定下来的三件事（答辩核心）
+## 四、本实现的三个关键决策（答辩核心）
 
-> 这三条决定了黑板的"求解形态"，请在实现前讨论清楚并把结论写进本节，代码与图才能对得上。
-
-**1. 黑板上到底存"一条路径"还是"一堆候选"？**
-C&C 图上既画了"当前搜索深度"，又画了"候选解/完整解"。两种理解都可能是合理的黑板实现：
-只保存一条当前路径（深度 + 位向量）→ 更像"黑板上的深度优先搜索"；
-保存候选解集合 → 更像"对一批候选批量施加规则"。
-本骨架两类字段都保留了，**实现时请删掉用不到的那些**，保持"黑板上只有真正需要共享的东西"。
+**1. 黑板上存"一条路径"还是"一堆候选"？**
+存**候选集合**。`candidates` 当**栈**用，每个元素是一条已放好前 `row` 行的合法路径
+（`PartialSolution` 自带列号数组 + 位向量状态）。栈顶即当前正在处理的候选，
+因此这是"黑板上的深度优先搜索"。`boardState` / `depth` 是栈顶候选的镜像，
+用于与 C&C 图上的"棋盘位向量 / 当前搜索深度"对应。
 
 **2. 谁来负责"扩展下一行"？**
-图中有三个知识源，它们分别只管列冲突、对角线冲突、解判定，**没有一个是"行扩展"知识源**。
-那么"把部分解往下放一行"这件事由谁做？常见做法有两种：
-控制器在推进搜索时生成候选并放上黑板；或由某个知识源在通过全部检查后负责推进深度。
-这直接决定了控制器是"纯调度器"还是"还干活的调度器"，是本架构最值得在报告里讲清楚的设计决策。
+**`KS_ColCheck`**。它是最容易被满足的一条规则，天然适合做搜索推进的入口：
+弹出栈顶路径，对每一列调用全组统一的剪枝实现生成子路径并压回工作区。
 
 **3. 停机条件是什么？**
-黑板架构没有天然结束信号。推荐用**版本号收敛**判定：
-一轮下来所有知识源都不可触发，且 `revision()` 相比本轮开始时没有增长 → 到达稳定态，停机。
-只判断"知识源都不可触发"是不够的，容易提前停机导致漏解（N=8 应当恰好 92 个解，可用于自检）。
+**版本号收敛**：一轮下来所有知识源都不可触发，**并且** `revision()` 相比本轮开始时
+没有增长 → 到达稳定态，停机。
+
+只判断"知识源都不可触发"是不够的：某条死路被取出后没有产生任何子候选时，
+必须靠版本号才能确认确实没有进展，否则会过早停机导致漏解（N=8 应恰好 92 个解）。
+
+> 因此 `takeCandidate()` 也递增版本号——**取出候选同样算"黑板内容变更"**。
+
+### 附：调度策略与一处设计张力
+
+**调度策略**采用固定顺序轮询：每轮按固定顺序逐个询问 `canHandle`，能触发就 `execute`。
+顺序固定 ⇒ 行为完全可复现 ⇒ 后续做跨架构耗时对比时数据才稳定。
+
+**一处需要说明的设计张力**：骨架把检查拆成 `KS_ColCheck` 与 `KS_DiagCheck` 两个知识源，
+但全组统一的 `BitVectorPruner.canPlace` 是一次判完列 + 两条对角线的。
+本实现的处理是：`KS_ColCheck` 负责扩展（用 pruner 做完整剪枝），
+`KS_DiagCheck` 负责"这条路径是否已被约束堵死"这个独立的可行性规则。
 
 ## 五、架构约束自查表（提交前逐项确认）
 
@@ -104,19 +114,21 @@ C&C 图上既画了"当前搜索深度"，又画了"候选解/完整解"。两�
 | 6 | 控制器是唯一持有知识源集合的组件 | | `List<KnowledgeSource>` 仅存在于控制器与装配器 |
 | 7 | 知识源可独立替换而不影响其它知识源 | | 三个 KS 之间零依赖 |
 | 8 | 剪枝调用全组统一实现 | | KS_ColCheck / KS_DiagCheck 注入 `common.BitVectorPruner` |
-| 9 | 黑板内容变更都递增版本号（供控制器判断进展） | | `publish*/updateBoardState/setDepth` 内 `revision++` |
+| 9 | 黑板内容变更都递增版本号（供控制器判断进展） | | `publish*` / `updateBoardState` / `setDepth` / `takeCandidate` 内 `revision++` |
 
-## 六、待办清单（TODO）
+## 六、实现状态
 
-| 文件 | 待实现 |
+阶段2 已全部实现完成，`mvn test` 通过，N=8/10/12 解数 92 / 724 / 14200。
+
+| 文件 | 状态 |
 |---|---|
-| `common/BitVectorPrunerImpl.java` | `initial` / `canPlace` / `place`（**五种架构共用，先做这个**） |
-| `blackboard/BlackboardState.java` | `updateBoardState` / `setDepth` / `publishCandidate` / `takeCandidate` / `publishSolution` / `markFinished` |
-| `blackboard/KS_ColCheck.java` | `canHandle` / `execute` |
-| `blackboard/KS_DiagCheck.java` | `canHandle` / `execute` |
-| `blackboard/KS_SolutionCheck.java` | `canHandle` / `execute` |
-| `blackboard/BlackboardController.java` | `solve()` 调度循环与停机判定 |
-| `blackboard/BlackboardMain.java` | `run`：装配黑板 + 三知识源 + 控制器，汇总日志 |
+| `common/BitVectorPrunerImpl.java` | ✅ `initial` / `canPlace` / `place` |
+| `blackboard/BlackboardState.java` | ✅ 6 个状态变更方法 + `peekCandidate` |
+| `blackboard/KS_ColCheck.java` | ✅ `canHandle` / `execute`（扩展） |
+| `blackboard/KS_DiagCheck.java` | ✅ `canHandle` / `execute`（死路检测） |
+| `blackboard/KS_SolutionCheck.java` | ✅ `canHandle` / `execute`（收集） |
+| `blackboard/BlackboardController.java` | ✅ `solve()` 调度循环与停机判定 |
+| `blackboard/BlackboardMain.java` | ✅ 装配与汇总 |
 
 ## 七、运行与验证
 

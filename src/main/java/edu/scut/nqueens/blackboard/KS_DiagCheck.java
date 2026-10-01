@@ -24,22 +24,15 @@ import edu.scut.nqueens.common.BitVectorPruner;
 import edu.scut.nqueens.common.PartialSolution;
 
 /**
- * 对角线冲突检查知识源（KS_DiagCheck）：判断待放置的位置是否与已放置的皇后在同一条对角线上。
+ * 对角线冲突检查知识源（KS_DiagCheck）。
  *
- * <p>两条对角线（↘ 与 ↙）在位向量中各占一组比特位，检查方式与列检查一样是三次按位与之一，
- * 具体实现委托给全组统一的 {@link BitVectorPruner}。
+ * <p>本实现中它承担"<b>死路检测</b>"职责：判断栈顶那条路径在下一行是否还有
+ * 任何一个不冲突的位置；若一个都没有，说明这条路径已被约束堵死，
+ * 把它从黑板上取走——它放不满 N 行，不可能参与任何解。
  *
- * <p><b>与 KS_ColCheck 的关系：</b>二者<b>没有</b>任何代码或调用关系——
- * 它们各自独立地读黑板、各自独立地把结论写回黑板，谁先执行、是否执行过，
- * 都由控制器决定，彼此互不知情。这正是"知识源之间绝对无直接通信"的含义，
- * 也是答辩最可能追问的点，请在 README 中把你的解释写清楚。
- *
- * <p>TODO（两个方法都要实现）：
- * <ul>
- *   <li>{@link #canHandle}：只看黑板当前状态判断"是否有待检查的候选"；</li>
- *   <li>{@link #execute}：对候选执行对角线冲突检查，把结论写回黑板
- *       （写回方式须与 KS_ColCheck 的约定一致，但两个类之间不得互相引用）。</li>
- * </ul>
+ * <p>它与 KS_ColCheck 之间<b>没有</b>任何代码或调用关系：各自独立地读黑板、
+ * 各自独立地把结论写回黑板，谁先执行、是否执行过都由控制器决定，彼此互不知情。
+ * 这正是"知识源之间绝对无直接通信"的含义。
  */
 public final class KS_DiagCheck implements KnowledgeSource {
 

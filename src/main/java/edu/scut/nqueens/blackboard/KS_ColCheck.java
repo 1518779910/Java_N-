@@ -23,21 +23,13 @@ import edu.scut.nqueens.common.BitVectorPruner;
 import edu.scut.nqueens.common.PartialSolution;
 
 /**
- * 列冲突检查知识源（KS_ColCheck）：判断待放置的位置是否与已放置的皇后同列。
+ * 列冲突检查知识源（KS_ColCheck）。
  *
- * <p><b>它是"独立知识源"的典型样本：</b>它只知道"列不能重复"这一条规则，
- * 既不知道对角线检查由谁负责，也不需要知道——它只读黑板、只写黑板。
- * 换掉它（比如换成允许同列的另一套规则）不会影响 KS_DiagCheck 与 KS_SolutionCheck。
+ * <p>本实现中它承担"<b>扩展</b>"职责：弹出栈顶那条路径，对下一行的每一列调用
+ * 全组统一的 {@link BitVectorPruner} 判定并生成子路径，通过者压回黑板工作区。
+ * 它是最容易被满足的一条规则，因此作为搜索推进的入口。
  *
- * <p>剪枝实现注入全组统一的 {@link BitVectorPruner}，因此本知识源的判断结果
- * 与其它四种架构风格的剪枝结果必然一致（这是跨架构性能对比成立的前提）。
- *
- * <p>TODO（两个方法都要实现）：
- * <ul>
- *   <li>{@link #canHandle}：只看黑板当前状态判断"是否有待检查的候选"；</li>
- *   <li>{@link #execute}：对候选执行列冲突检查，把结论写回黑板
- *       （通过 / 不通过的表示方式由你们在 BlackboardState 上约定，须在 README 中写明）。</li>
- * </ul>
+ * <p>它只读黑板、只写黑板，不持有也不调用任何其它知识源。
  */
 public final class KS_ColCheck implements KnowledgeSource {
 

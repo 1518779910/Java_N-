@@ -8,9 +8,9 @@
 
 | 项 | 内容 | 状态 |
 |---|---|---|
-| 管道-过滤器架构 | 可运行代码 + [README-管道-过滤器.md](README-管道-过滤器.md) | 骨架已就绪，求解逻辑待实现 |
-| 黑板架构 | 可运行代码 + [README-黑板.md](README-黑板.md) | 骨架已就绪，求解逻辑待实现 |
-| 全组共用剪枝模板 | `common` 包，保证五种架构剪枝策略等价 | 接口已定，实现待补 |
+| 管道-过滤器架构 | 可运行代码 + [README-管道-过滤器.md](README-管道-过滤器.md) | ✅ 已完成，N=8 出 92 个解 |
+| 黑板架构 | 可运行代码 + [README-黑板.md](README-黑板.md) | ✅ 已完成，N=8 出 92 个解 |
+| 全组共用剪枝模板 | `common` 包，保证五种架构剪枝策略等价 | ✅ 已实现并经朴素实现对拍验证 |
 | 组件-连接器图 | 阶段1 所画，已复制到 [docs/](docs) 与代码同仓 | 已完成 |
 
 ---
@@ -31,7 +31,7 @@
 # 编译
 mvn compile
 
-# 跑单元测试（骨架阶段全部为 @Disabled，BUILD SUCCESS 属正常）
+# 跑单元测试（7 个用例，含跨架构解数一致性验证）
 mvn test
 
 # 运行某种架构（五种架构命令格式统一，便于跨架构实验对比）
@@ -70,8 +70,9 @@ mvn exec:java "-Dexec.args=--arch=pipes --n=12 --first"
     │   │   └── Result.java               结果条目（解 + 输出序号）
     │   ├── pipesfilter/          架构一：管道-过滤器（成员A）
     │   └── blackboard/           架构二：黑板（成员B）
-    └── test/java/edu/scut/nqueens/common
-        └── BitVectorPrunerTest.java      剪枝实现的单元测试
+    └── test/java/edu/scut/nqueens
+        ├── common/BitVectorPrunerTest.java    剪枝实现单元测试 + 朴素实现对拍
+        └── ArchitectureParityTest.java        跨架构解数一致性（92 / 724 / 14200）
 ```
 
 ---

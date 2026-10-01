@@ -11,7 +11,7 @@
 
 用这种风格解 N 皇后的关键点是：把"逐行扩展"这个天然带有递归/回溯味道的过程，
 改造成"数据在链条上流动、被不断扩展与剪枝"的过程——部分解从上游流下来，
-校验过滤器把它扩展成下一行的若干个合法子部分解，解集收集过滤器只负责收集完整解。
+校验过滤器把每条分支一路展开到底、只把完整解送往下游，收集过滤器负责编号与计数。
 整条链没有反馈回路，解的数量与正确性完全由数据流的语义决定。
 
 ## 二、组件-连接器图（阶段1 所画）
@@ -84,11 +84,13 @@ graph LR
 漏掉这一步的典型症状是程序跑完之后线程不退出、`join` 永远等下去。
 
 **2. 为什么校验和扩展在同一个过滤器里？**
-纯管道-过滤器没有反馈回路，部分解只能单向流动。若把"校验"与"扩展"拆成两个过滤器，
-合法部分解在链条上每前进一格只能多放一行，数据量成倍膨胀却毫无意义。
-把"枚举下一行的 N 个列 + 位向量剪枝"合并进 ValidatorFilter，一次处理就能把
-1 个部分解扩展成若干个合法子部分解，扇出一棵搜索树——这是本架构的**关键设计决策**，
-也是答辩时会被追问的点，请按上面的理由回答。
+纯管道-过滤器**没有反馈回路**，数据只能单向流动。如果把两者拆成两个过滤器，
+扩展出来的子部分解就再也回不到校验过滤器了——它只会顺着 Pipe 2 流到收集器。
+
+所以一次 `process` 调用必须把这条分支**走到底**：在过滤器内部递归展开
+（`ValidatorFilter.expand`），只把**完整解**写向下游。一条输入数据因此在管道末端
+扇出成若干个解，而管道依然是单向无环的。这就是"1 个部分解扇出一棵搜索树"的含义，
+是本架构的**关键设计决策**。
 
 ## 五、架构约束自查表（提交前逐项确认）
 
@@ -102,19 +104,21 @@ graph LR
 | 6 | 数据流方向单一，无反馈回路 | | 图与代码均为线性链 Pipe1→Pipe2→Pipe3 |
 | 7 | 剪枝调用全组统一实现 | | `ValidatorFilter` 注入 `common.BitVectorPruner` |
 
-## 六、待办清单（TODO）
+## 六、实现状态
 
-| 文件 | 待实现 |
+阶段2 已全部实现完成，`mvn test` 通过，N=8/10/12 解数 92 / 724 / 14200。
+
+| 文件 | 状态 |
 |---|---|
-| `common/BitVectorPrunerImpl.java` | `initial` / `canPlace` / `place`（**五种架构共用，先做这个**） |
-| `pipesfilter/Pipe.java` | `put` / `take` / `close`（EOS 标记） |
-| `pipesfilter/Filter.java` | `run()` 主循环（含 EOS 转发与源过滤器的单次执行） |
-| `pipesfilter/GeneratorFilter.java` | `process`：写出第 0 行候选 |
-| `pipesfilter/ValidatorFilter.java` | `process`：扩展 + 剪枝，包装 ValidSolution |
-| `pipesfilter/CollectorFilter.java` | `process`：判定完整解、编号成 Result、计数 |
-| `pipesfilter/OutputFilter.java` | `process`：输出格式（含可选棋盘图） |
-| `pipesfilter/PipeFilterMain.java` | `run`：装配管道与过滤器、启动线程、join、汇总日志 |
-| `test/.../BitVectorPrunerTest.java` | 去掉 `@Disabled` 并补全用例 |
+| `common/BitVectorPrunerImpl.java` | ✅ `initial` / `canPlace` / `place` |
+| `pipesfilter/Pipe.java` | ✅ `put` / `take` / `close`（EOS 哨兵对象） |
+| `pipesfilter/Filter.java` | ✅ `run()` 主循环（EOS 转发 + 异常传递） |
+| `pipesfilter/GeneratorFilter.java` | ✅ 写出第 0 行候选 |
+| `pipesfilter/ValidatorFilter.java` | ✅ 递归展开 + 剪枝 |
+| `pipesfilter/CollectorFilter.java` | ✅ 判定完整解、编号成 Result、计数 |
+| `pipesfilter/OutputFilter.java` | ✅ 输出格式（含可选棋盘图） |
+| `pipesfilter/PipeFilterMain.java` | ✅ 4 线程装配 + join 超时兜底 + 中断式提前终止 |
+| `test/.../BitVectorPrunerTest.java` | ✅ 用例全部启用 + 朴素实现对拍 |
 
 ## 七、运行与验证
 
