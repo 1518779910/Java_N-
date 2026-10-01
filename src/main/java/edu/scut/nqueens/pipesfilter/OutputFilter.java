@@ -18,6 +18,7 @@
 package edu.scut.nqueens.pipesfilter;
 
 import java.io.PrintStream;
+import java.util.concurrent.atomic.AtomicLong;
 
 import edu.scut.nqueens.common.Result;
 import edu.scut.nqueens.common.Solution;
@@ -47,17 +48,23 @@ public final class OutputFilter extends Filter<Result, Void> {
      */
     private final PrintStream sink;
     private final boolean printBoard;
+    /** 最多输出多少条；0 表示不限。--first 传 1，这样"只求第一个解"就真的只输出一个解。 */
+    private final int maxResults;
+    /** 已输出的条目数。供装配器在"只求第一个解"时确认第一个解确实已经打印出来。 */
+    private final AtomicLong printedCount = new AtomicLong();
 
     /**
      * @param name       过滤器名称
      * @param in         上游管道（Pipe 3：承载 Result）
      * @param sink       输出目标（控制台或日志文件）
      * @param printBoard 是否额外打印棋盘图（N=12 时建议关闭，否则日志过长）
+     * @param maxResults 最多输出多少条；{@code 0} 表示不限（求全部解时用 0，{@code --first} 时用 1）
      */
-    public OutputFilter(String name, Pipe<Result> in, PrintStream sink, boolean printBoard) {
+    public OutputFilter(String name, Pipe<Result> in, PrintStream sink, boolean printBoard, int maxResults) {
         super(name, in, null);
         this.sink = sink;
         this.printBoard = printBoard;
+        this.maxResults = maxResults;
     }
 
     public PrintStream sink() {
@@ -75,12 +82,21 @@ public final class OutputFilter extends Filter<Result, Void> {
      * 通过 {@link Result#index()} 传进来。所以它是完全无状态的：
      * 换个输出目标（控制台 / 文件 / CSV）不需要动一行逻辑。
      */
+    /** 已输出的条目数。装配器靠它判断"第一个解是否已经真的打印出来了"。 */
+    public long printedCount() {
+        return printedCount.get();
+    }
+
     @Override
     protected void process(Result item) {
+        if (maxResults > 0 && printedCount.get() >= maxResults) {
+            return;   // 已达输出上限（--first），后续到达的结果直接丢弃
+        }
         sink.println("#" + item.index() + " " + item.solution());
         if (printBoard) {
             printBoard(item.solution());
         }
+        printedCount.incrementAndGet();
     }
 
     /**

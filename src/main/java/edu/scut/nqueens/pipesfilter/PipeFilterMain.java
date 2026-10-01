@@ -89,7 +89,9 @@ public final class PipeFilterMain {
         GeneratorFilter generator = new GeneratorFilter("GeneratorFilter", pipe1, n, pruner);
         ValidatorFilter validator = new ValidatorFilter("ValidatorFilter", pipe1, pipe2, pruner);
         CollectorFilter collector = new CollectorFilter("CollectorFilter", pipe2, pipe3);
-        OutputFilter output = new OutputFilter("OutputFilter", pipe3, out, n <= 8);
+        // 棋盘图只在 N<=8 时打印（92 个解尚可阅读，N=12 的 14200 个会淹没日志）；
+        // 输出条数上限：求全部解时不限（0），只求第一个解时限 1 条
+        OutputFilter output = new OutputFilter("OutputFilter", pipe3, out, n <= 8, findAll ? 0 : 1);
 
         // 4. 每个过滤器一个线程。源过滤器与汇过滤器同样需要独立线程：
         //    它们也是被管道的阻塞语义驱动的，放进主线程会让整条链失去流水线形态。
@@ -107,11 +109,15 @@ public final class PipeFilterMain {
         if (!findAll) {
             // 只求第一个解：管道-过滤器没有天然的提前终止点，
             // 因为解一旦进入管道，后续数据还在链上流动。
-            // 这里由主线程盯着收集计数，一有解就中断整条链。
+            // 这里由主线程盯着输出过滤器的**打印计数**，打印出来一个就中断整条链。
+            //
+            // 注意不能盯着收集计数：收集与打印是两个线程，一收到解就打断的话，
+            // 解可能还没被打印出来，使用者会看到"解数=1"却没有任何解的输出。
+            //
             // 用中断而不是 Thread.stop()：阻塞在管道上的过滤器会被 InterruptedException
             // 唤醒，走正常的退出路径，不会留下半截状态。
             try {
-                while (collector.collectedCount() == 0 && anyAlive(threads)) {
+                while (output.printedCount() == 0 && anyAlive(threads)) {
                     Thread.sleep(1);
                 }
             } catch (InterruptedException e) {

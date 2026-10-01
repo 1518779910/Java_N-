@@ -23,6 +23,7 @@ import java.util.List;
 import edu.scut.nqueens.common.BitVectorPruner;
 import edu.scut.nqueens.common.BitVectorPrunerImpl;
 import edu.scut.nqueens.common.PartialSolution;
+import edu.scut.nqueens.common.Solution;
 
 /**
  * 黑板架构的装配与启动入口。
@@ -100,7 +101,14 @@ public final class BlackboardMain {
         int count = controller.solve(findAll);
         long elapsed = System.currentTimeMillis() - startMillis;
 
-        // 阶段3 的汇总行：架构名 / N / 解数 / 耗时
+        // 逐个输出解。格式与管道-过滤器架构保持一致（#序号 + 逗号分隔的列号序列），
+        // 这样两种架构的输出可以直接对照，老师不必记两套格式。
+        int index = 1;
+        for (Solution solution : blackboard.solutions()) {
+            out.println("#" + index++ + " " + solution);
+        }
+
+        // 汇总行：架构名 / N / 解数 / 耗时
         out.printf("[blackboard] N=%d 解数=%d 耗时=%d ms%n", n, count, elapsed);
         return count;
     }
