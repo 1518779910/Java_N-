@@ -19,7 +19,9 @@
  * ============================================================ */
 package edu.scut.nqueens.blackboard;
 
+import edu.scut.nqueens.common.BitVectorBoardState;
 import edu.scut.nqueens.common.BitVectorPruner;
+import edu.scut.nqueens.common.PartialSolution;
 
 /**
  * 对角线冲突检查知识源（KS_DiagCheck）：判断待放置的位置是否与已放置的皇后在同一条对角线上。
@@ -57,13 +59,46 @@ public final class KS_DiagCheck implements KnowledgeSource {
         return "KS_DiagCheck";
     }
 
+    /**
+     * 触发条件：栈顶这条路径<b>已经无路可走</b>——它的下一行不论选哪一列，
+     * 都会被列或对角线约束拒绝。
+     *
+     * <p>这条规则只读黑板：它看的是"这条路径还能不能继续"，
+     * 与"谁把这条路径放上黑板的""KS_ColCheck 是否跑过"完全无关。
+     */
     @Override
     public boolean canHandle(BlackboardState blackboard) {
-        throw new UnsupportedOperationException("TODO: 判断黑板当前是否有需要做对角线冲突检查的候选（只看黑板）");
+        PartialSolution top = blackboard.peekCandidate();
+        return top != null && !top.isComplete() && !hasAnyContinuation(top);
     }
 
+    /**
+     * 把这条被约束堵死的路径从黑板上取走（丢弃）。
+     * 它放不满 N 行，因此不可能参与任何一个解——丢掉不会漏解。
+     */
     @Override
     public void execute(BlackboardState blackboard) {
-        throw new UnsupportedOperationException("TODO: 用 pruner 检查两条对角线冲突，把结论写回黑板");
+        blackboard.takeCandidate();
+    }
+
+    /**
+     * 判断一条路径在下一行是否还存在至少一个不冲突的放置位置。
+     *
+     * <p>注意这里用的是路径<b>自己携带</b>的位向量状态（{@link PartialSolution#state()}），
+     * 而不是黑板上的 {@code boardState}——因为要判断的正是这条路径的可行性，
+     * 而不是"当前正在扩展的那条路径"的可行性。
+     */
+    private boolean hasAnyContinuation(PartialSolution path) {
+        // row == 0 的起点还没建过位向量状态，先补一个空棋盘（N 列全空，必然有出路）
+        BitVectorBoardState state =
+                path.state() != null ? path.state() : pruner.initial(path.n());
+
+        int row = path.row();
+        for (int col = 0; col < path.n(); col++) {
+            if (pruner.canPlace(state, row, col)) {
+                return true;
+            }
+        }
+        return false;
     }
 }

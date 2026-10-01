@@ -100,7 +100,8 @@ public final class BlackboardState {
      * 因此这里是"整体替换"而不是"就地修改"，不会出现两个知识源看到半个状态的情况。
      */
     public void updateBoardState(BitVectorBoardState newState) {
-        throw new UnsupportedOperationException("TODO: 更新黑板上的棋盘位向量并递增版本号");
+        this.boardState = newState;
+        revision.incrementAndGet();
     }
 
     /** 当前搜索深度（已放置的行数）。 */
@@ -114,7 +115,8 @@ public final class BlackboardState {
      * <p>TODO：赋值 + revision.incrementAndGet()。
      */
     public void setDepth(int newDepth) {
-        throw new UnsupportedOperationException("TODO: 更新当前搜索深度并递增版本号");
+        this.depth = newDepth;
+        revision.incrementAndGet();
     }
 
     // ---------------------------------------------------------------- 候选解工作区
@@ -132,20 +134,44 @@ public final class BlackboardState {
     /**
      * 把一个候选解放入工作区，并把黑板版本号加一。
      *
-     * <p>TODO：candidates.addFirst/Last + revision.incrementAndGet()。
-     * 注意：<b>不要</b>在这里做任何合法性判断，判断是知识源的职责。
+     * <p>注意：<b>不</b>在这里做任何合法性判断，判断是知识源的职责。
+     * <p>存放端固定为队首（{@code addFirst}），与 {@link #takeCandidate()} 的 {@code pollFirst}
+     * 配对，使工作区表现为<b>栈</b>——后进先出，即"沿最新的一条路径继续往下搜"，
+     * 也就是黑板上的深度优先搜索。这样栈的规模被搜索深度限制住（O(N²) 量级），
+     * N=12 时也不会堆积起上百万个候选。
      */
     public void publishCandidate(PartialSolution candidate) {
-        throw new UnsupportedOperationException("TODO: 把候选解放入黑板工作区并递增版本号");
+        candidates.addFirst(candidate);
+        revision.incrementAndGet();
     }
 
     /**
      * 从工作区取出一个候选解（取出后即从工作区移除，避免被重复处理）。
      *
-     * <p>TODO：工作区为空时返回 null，调用方据此判断"没有可处理的料"。
+     * <p>弹出同样算"黑板内容变更"，因此也递增版本号。这一点很重要：
+     * 若某条候选被取出后没有产生任何子候选（死路），版本号不增长，
+     * 控制器就会误判"本轮无任何进展"而提前停机、导致漏解。
+     *
+     * @return 队首候选；工作区为空时返回 {@code null}，调用方据此判断"没有可处理的料"
      */
     public PartialSolution takeCandidate() {
-        throw new UnsupportedOperationException("TODO: 从黑板工作区取出一个候选解");
+        PartialSolution taken = candidates.pollFirst();
+        if (taken != null) {
+            revision.incrementAndGet();
+        }
+        return taken;
+    }
+
+    /**
+     * 只读地查看队首候选，<b>不</b>取出。
+     *
+     * <p>供知识源的 {@code canHandle} 使用——触发条件只能读黑板、不能修改黑板，
+     * 所以它必须看一眼而不弹出。
+     *
+     * @return 队首候选；工作区为空时返回 {@code null}
+     */
+    public PartialSolution peekCandidate() {
+        return candidates.peekFirst();
     }
 
     // ---------------------------------------------------------------- 完整解结果区
@@ -156,7 +182,8 @@ public final class BlackboardState {
      * <p>TODO：solutions.add + revision.incrementAndGet()。
      */
     public void publishSolution(Solution solution) {
-        throw new UnsupportedOperationException("TODO: 把完整解写入黑板结果区并递增版本号");
+        solutions.add(solution);
+        revision.incrementAndGet();
     }
 
     /** 已找到的全部解（只读视图）。 */
@@ -187,6 +214,6 @@ public final class BlackboardState {
      * <p>TODO：finished.set(true)。
      */
     public void markFinished() {
-        throw new UnsupportedOperationException("TODO: 标记黑板到达稳定态");
+        finished.set(true);
     }
 }

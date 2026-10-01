@@ -41,6 +41,16 @@ import java.util.concurrent.LinkedBlockingQueue;
  */
 public final class Pipe<T> implements AutoCloseable {
 
+    /**
+     * 流结束标记（End Of Stream）。用私有哨兵对象而不是 null，原因有两个：
+     * <ul>
+     *   <li>{@code LinkedBlockingQueue} 不接受 null 元素；</li>
+     *   <li>数据项本身可能是任意类型，只有"引用相等"才能区分"这是 EOS"和"这是恰好等于某个值的数据"。</li>
+     * </ul>
+     * 泛型在运行期被擦除，因此入队时要经过一次受检的强制转换（见 {@link #close()}）。
+     */
+    private static final Object EOS = new Object();
+
     private final String name;
     private final BlockingQueue<T> queue;
 
@@ -62,36 +72,46 @@ public final class Pipe<T> implements AutoCloseable {
     /**
      * 把数据写入管道（写端）。
      *
-     * <p>TODO：委托给 queue.put(item)，队列满时自然阻塞。
+     * <p>队列满时自然阻塞——这就是背压（back pressure）：上游不会无限生产，
+     * 生产速度被下游的消费速度自动限制住，不需要任何额外代码。
      */
     public void put(T item) throws InterruptedException {
-        throw new UnsupportedOperationException("TODO: 向管道写入数据：" + name);
+        queue.put(item);
     }
 
     /**
      * 从管道读取数据（读端）。
      *
-     * <p>TODO：委托给 queue.take()；读到流结束标记（EOS）时返回 {@link Optional#empty()}。
+     * <p>队列空时自然阻塞，直到上游写入数据或放入 EOS。
+     * 用引用比较 {@code item == EOS} 判断流结束：只有 {@link #close()} 放进去的那个
+     * 哨兵对象会命中，数据项本身不可能与之相等。
      *
      * @return 数据项；上游已结束且队列已排空时返回 {@code Optional.empty()}
      */
     public Optional<T> take() throws InterruptedException {
-        throw new UnsupportedOperationException("TODO: 从管道读取数据：" + name);
+        T item = queue.take();
+        if (item == EOS) {
+            return Optional.empty();
+        }
+        return Optional.of(item);
     }
 
     /**
      * 关闭管道写端：放入流结束标记（EOS），下游读到后会继续向下游转发。
      *
-     * <p>TODO：EOS 标记的实现思路（二选一，需要处理泛型擦除问题）：
-     * <ul>
-     *   <li>方案一：本类内定义私有哨兵对象 {@code private static final Object EOS = new Object();}，
-     *       入队时做一次受检的强制转换，读取时用 {@code item == EOS} 判断；</li>
-     *   <li>方案二：队列元素用 {@code Optional<T>} 包装，{@code Optional.empty()} 即 EOS，
-     *       代价是每次读写都多一层包装对象。</li>
-     * </ul>
+     * <p>注意这是"放在队列末尾"而不是"立刻切断"：队列里排在 EOS 前面的数据
+     * 仍会被下游依次读到，EOS 只是告诉下游"这之后不会再有数据了"。
+     * 顺序由此天然保证，不需要额外的同步。
      */
     @Override
+    @SuppressWarnings("unchecked")
     public void close() {
-        throw new UnsupportedOperationException("TODO: 向管道写入流结束标记（EOS）：" + name);
+        try {
+            queue.put((T) EOS);
+        } catch (InterruptedException e) {
+            // close() 是 AutoCloseable 的约定，不能抛出 InterruptedException；
+            // 保留中断状态，交给上层察觉。
+            Thread.currentThread().interrupt();
+        }
     }
 }

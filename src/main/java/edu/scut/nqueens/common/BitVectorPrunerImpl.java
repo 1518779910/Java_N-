@@ -33,19 +33,30 @@ public final class BitVectorPrunerImpl implements BitVectorPruner {
 
     @Override
     public BitVectorBoardState initial(int n) {
-        throw new UnsupportedOperationException(
-                "TODO: 返回 N=" + n + " 的初始状态（三个位向量全为 0、深度为 0）");
+
+        // 返回 N=n 的初始状态（三个位向量全为 0、深度为 0）
+        return new BitVectorBoardState(n,0,0,0,0);
+
     }
 
     @Override
     public boolean canPlace(BitVectorBoardState state, int row, int col) {
-        throw new UnsupportedOperationException(
-                "TODO: 用三次按位与判断 (row=" + row + ", col=" + col + ") 是否与已放置的皇后冲突");
+
+        // 检查 (row, col) 是否与已放置的皇后冲突
+        return (state.columnMask() & (1 << col)) == 0 && (state.diagDownMask() & (1 << (row - col + state.n() - 1))) == 0
+                && (state.diagUpMask() & (1 << (row + col))) == 0;
     }
 
     @Override
     public BitVectorBoardState place(BitVectorBoardState state, int row, int col) {
-        throw new UnsupportedOperationException(
-                "TODO: 用按位或把列与两条对角线的对应位置 1，返回新状态（不得修改入参）");
+        // 不可变语义：BitVectorBoardState 的字段全为 private final 且无 setter，
+        // 唯一出路是构造一个新对象返回，原 state 保持不变（多线程可安全共享）。
+        return new BitVectorBoardState(
+                state.n(),                                                  // 棋盘规模不变
+                state.columnMask() | (1 << col),                            // 点亮第 col 列
+                state.diagDownMask() | (1 << (row - col + state.n() - 1)),  // 点亮 ↘ 对角线
+                state.diagUpMask() | (1 << (row + col)),                    // 点亮 ↙ 对角线
+                state.depth() + 1                                           // 已放皇后数 +1
+        );
     }
 }

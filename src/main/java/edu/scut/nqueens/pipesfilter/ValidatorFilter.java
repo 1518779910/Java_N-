@@ -60,9 +60,48 @@ public final class ValidatorFilter extends Filter<PartialSolution, ValidSolution
         return pruner;
     }
 
+    /**
+     * 处理一个输入的部分解：把这条分支一路展开到底，每凑满 N 行就写一个完整解给下游。
+     *
+     * <p><b>"校验"和"扩展"为什么必须合并在同一个过滤器里（本架构的关键设计决策）：</b>
+     * 纯管道-过滤器没有反馈回路，数据只能单向流动。如果把两者拆成两个过滤器，
+     * 扩展出来的子部分解就<b>再也回不到校验过滤器</b>了——它只会顺着 Pipe 2 流到收集器，
+     * 而收集器只会判定"这不是完整解"。想在链条上传回去，就必须引入反馈回路，
+     * 那就不是管道-过滤器了。
+     *
+     * <p>所以一次 {@code process} 调用必须把这条分支<b>走到底</b>：
+     * 在过滤器内部递归展开（{@link #expand}），只把<b>完整解</b>写向下游。
+     * 这样一条输入数据会在管道末端扇出成若干个解——1 个部分解"扇出一棵搜索树"，
+     * 而管道依然是单向无环的。答辩追问时按这个理由回答。
+     */
     @Override
     protected void process(PartialSolution item) throws InterruptedException {
-        throw new UnsupportedOperationException(
-                "TODO: 对部分解扩展第 " + item.row() + " 行并用位向量剪枝，把合法的子部分解包装成 ValidSolution 写向下游");
+        expand(item);
+    }
+
+    /**
+     * 递归展开一条部分解的全部合法续接。
+     *
+     * <p>换成递归回溯的写法对照：本方法就是
+     * {@code if (完成) 收集; else for (col) if (canPlace) { place; 递归; }}，
+     * 唯一的区别是"收集"变成了"写向下游管道"。
+     *
+     * <p>递归深度不超过 N（作业规模 12），不会栈溢出。
+     */
+    private void expand(PartialSolution partial) throws InterruptedException {
+        if (partial.isComplete()) {
+            // 已放满 N 行且逐行都通过了剪枝，是一个完整解，交给下游收集过滤器判定与编号
+            out().put(new ValidSolution(partial));
+            return;
+        }
+
+        // 枚举下一行的 N 个列，逐个交给全组统一的 pruner 判定；
+        // PartialSolution.place 内部调用 pruner.canPlace，冲突时返回 null
+        for (int col = 0; col < partial.n(); col++) {
+            PartialSolution child = partial.place(col, pruner);
+            if (child != null) {
+                expand(child);
+            }
+        }
     }
 }

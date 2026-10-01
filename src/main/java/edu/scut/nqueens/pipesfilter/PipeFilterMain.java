@@ -18,8 +18,11 @@
 package edu.scut.nqueens.pipesfilter;
 
 import java.io.PrintStream;
+import java.util.ArrayList;
+import java.util.List;
 
 import edu.scut.nqueens.common.BitVectorPruner;
+import edu.scut.nqueens.common.BitVectorPrunerImpl;
 import edu.scut.nqueens.common.PartialSolution;
 import edu.scut.nqueens.common.Result;
 
@@ -56,6 +59,9 @@ import edu.scut.nqueens.common.Result;
  */
 public final class PipeFilterMain {
 
+    /** 等待过滤器线程结束的上限（毫秒）。N≤12 的正常运行远用不到，只是防死锁的兜底。 */
+    private static final long JOIN_TIMEOUT_MILLIS = 60_000;
+
     private PipeFilterMain() {
     }
 
@@ -68,8 +74,104 @@ public final class PipeFilterMain {
      * @return 解的数量
      */
     public static long run(int n, boolean findAll, PrintStream out) {
-        throw new UnsupportedOperationException(
-                "TODO: 装配管道链并运行（N=" + n + "，" + (findAll ? "全部解" : "首个解") + "）");
+        // 1. 三条管道（连接器）。容量取 64 而不是无界队列：无界队列会让管道退化成
+        //    "内存里的数组"，既失去"流"的语义，也会掩盖下游的消费瓶颈。
+        Pipe<PartialSolution> pipe1 = new Pipe<>("Pipe 1", 64);
+        Pipe<ValidSolution> pipe2 = new Pipe<>("Pipe 2", 64);
+        Pipe<Result> pipe3 = new Pipe<>("Pipe 3", 64);
+
+        // 2. 全组统一的剪枝实现。校验过滤器与生成过滤器注入的是同一个无状态实例。
+        BitVectorPruner pruner = new BitVectorPrunerImpl();
+
+        // 3. 四个过滤器，严格按 C&C 图的顺序接线。
+        //    每个过滤器只拿到自己那一侧的管道，彼此之间没有任何引用——
+        //    "过滤器之间只通过管道通信"这条约束在构造阶段就已经成立，不需要靠自觉。
+        GeneratorFilter generator = new GeneratorFilter("GeneratorFilter", pipe1, n, pruner);
+        ValidatorFilter validator = new ValidatorFilter("ValidatorFilter", pipe1, pipe2, pruner);
+        CollectorFilter collector = new CollectorFilter("CollectorFilter", pipe2, pipe3);
+        OutputFilter output = new OutputFilter("OutputFilter", pipe3, out, n <= 8);
+
+        // 4. 每个过滤器一个线程。源过滤器与汇过滤器同样需要独立线程：
+        //    它们也是被管道的阻塞语义驱动的，放进主线程会让整条链失去流水线形态。
+        List<Filter<?, ?>> filters = List.of(generator, validator, collector, output);
+        List<Thread> threads = new ArrayList<>(filters.size());
+        for (Filter<?, ?> filter : filters) {
+            Thread thread = new Thread(filter, filter.name());
+            thread.setDaemon(true);   // 主线程异常退出时，别让残留线程把 JVM 挂住
+            threads.add(thread);
+        }
+
+        long startMillis = System.currentTimeMillis();
+        threads.forEach(Thread::start);
+
+        if (!findAll) {
+            // 只求第一个解：管道-过滤器没有天然的提前终止点，
+            // 因为解一旦进入管道，后续数据还在链上流动。
+            // 这里由主线程盯着收集计数，一有解就中断整条链。
+            // 用中断而不是 Thread.stop()：阻塞在管道上的过滤器会被 InterruptedException
+            // 唤醒，走正常的退出路径，不会留下半截状态。
+            try {
+                while (collector.collectedCount() == 0 && anyAlive(threads)) {
+                    Thread.sleep(1);
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+            threads.forEach(Thread::interrupt);
+        }
+
+        for (Thread thread : threads) {
+            try {
+                thread.join(JOIN_TIMEOUT_MILLIS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                break;
+            }
+        }
+
+        // 死锁兜底：某个过滤器异常退出后，它<b>上游</b>的过滤器会永远阻塞在
+        // "已经没有下游消费"的管道上，join 就再也不会返回——现象是程序像卡死一样挂着。
+        // 因此超时后主动中断全部线程，让它们走正常退出路径。
+        if (anyAlive(threads)) {
+            threads.forEach(Thread::interrupt);
+            for (Thread thread : threads) {
+                try {
+                    thread.join(1000);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    break;
+                }
+            }
+        }
+
+        long elapsed = System.currentTimeMillis() - startMillis;
+
+        // 5. 任何一个过滤器异常终止，都必须让整条链失败得响亮
+        for (Filter<?, ?> filter : filters) {
+            if (filter.failure() != null) {
+                throw new IllegalStateException(
+                        "过滤器 " + filter.name() + " 异常终止", filter.failure());
+            }
+        }
+
+        // 6. 汇总行（阶段3 的实验日志格式：架构名 / N / 解数 / 耗时毫秒）
+        long count = collector.collectedCount();
+        // 只求第一个解时，中断发生在"观察到第一个解"之后，管道里可能还有在途数据被顺带收集。
+        // 那种情况下报告 1（"至少存在一个解"），而不是把在途数据的数量报出去。
+        long reported = findAll ? count : Math.min(count, 1L);
+
+        out.printf("[pipes] N=%d 解数=%d 耗时=%d ms%n", n, reported, elapsed);
+        return reported;
+    }
+
+    /** 是否还有过滤器线程存活；用作只求第一个解时的轮询兜底，避免空转死循环。 */
+    private static boolean anyAlive(List<Thread> threads) {
+        for (Thread thread : threads) {
+            if (thread.isAlive()) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** 便于单架构调试：java -cp target/classes edu.scut.nqueens.pipesfilter.PipeFilterMain --n=8 */

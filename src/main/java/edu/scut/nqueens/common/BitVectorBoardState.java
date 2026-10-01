@@ -49,8 +49,23 @@ package edu.scut.nqueens.common;
  * 这样同一个状态可以被多个线程安全共享，符合"过滤器之间不共享可变状态"
  * 以及"知识源之间不直接通信"的架构约束。
  *
- * <p>TODO（成员A 负责）：确认位宽是否满足 N=8/10/12 的要求，并在注释中写明 N 的上界
- * （int 为 32 位，因此列上界为 32；若要求支持更大的 N 需改用 long 或位数组）。
+ * <p><b>位宽与 N 的上界（已确认）：</b>三个掩码都是 {@code int}（32 位），但三者用到的位宽不同：
+ * <ul>
+ *   <li>{@code columnMask}：只用到第 {@code 0..N-1} 位 → 要求 {@code N ≤ 32}；</li>
+ *   <li>{@code diagDownMask}：用到第 {@code 0..2N-2} 位（{@code row-col+n-1} 的取值范围），
+ *       共 {@code 2N-1} 位 → 要求 {@code 2N-1 ≤ 32}，即 <b>N ≤ 16</b>；</li>
+ *   <li>{@code diagUpMask}：用到第 {@code 0..2N-2} 位（{@code row+col} 的取值范围），
+ *       同理要求 <b>N ≤ 16</b>。</li>
+ * </ul>
+ * 因此本实现支持的规模上界是 <b>N = 16</b>——受<b>两条对角线掩码</b>约束，而不是列掩码。
+ * 作业要求的 N=8/10/12 均在范围内，无需改动。
+ *
+ * <p><b>注意：</b>{@code Main.java} 里目前把命令行校验写成 {@code 1..31}，
+ * 那是按列掩码（{@code N ≤ 32}）估的上界，对所有架构统一适用；
+ * N=17..31 时两对角线掩码会因位移量超过 31 而被 Java 取模（{@code 1 << 32 == 1}）导致静默出错。
+ * 由于作业只测 8/10/12，这里不改 {@code Main}，仅在此记录该边界。
+ *
+ * <p>若将来需要 N > 16，需把三个掩码改用 {@code long}（N ≤ 32）或位数组 / {@code BitSet}。
  */
 public final class BitVectorBoardState {
 

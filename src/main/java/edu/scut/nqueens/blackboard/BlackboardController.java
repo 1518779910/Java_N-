@@ -65,27 +65,46 @@ public final class BlackboardController {
     }
 
     /**
-     * 调度主循环：反复触发可用的知识源，直到黑板到达稳定态。
+     * 调度主循环：按固定顺序反复触发可用的知识源，直到黑板到达稳定态。
      *
-     * <p>TODO：实现调度循环——
-     * <pre>
-     *   while (!blackboard.isFinished()) {
-     *       long before = blackboard.revision();
-     *       for (KnowledgeSource ks : sources) {
-     *           if (ks.canHandle(blackboard)) { ks.execute(blackboard); }
-     *       }
-     *       if (blackboard.revision() == before) {   // 一轮下来没有任何进展
-     *           blackboard.markFinished();
-     *       }
-     *   }
-     * </pre>
-     * 上面只是<b>固定顺序轮询</b>的骨架示意，请结合你们选定的黑板求解形态补全；
-     * 若只求第一个解，可在找到解后直接跳出循环。
+     * <p><b>采用的是三种策略中最简单的一种——固定顺序轮询</b>
+     * （见类注释第 1 条）：每轮按 {@code sources} 的顺序逐个询问 {@code canHandle}，
+     * 能触发就 {@code execute}。顺序固定 ⇒ 行为完全可复现 ⇒
+     * 阶段3 做跨架构耗时对比时数据才稳定。
      *
-     * @return 找到的解的数量
+     * <p><b>停机判定同时看两件事</b>：一轮下来没有任何知识源可触发，
+     * <b>并且</b>黑板版本号 {@code revision} 相比本轮开始时没有增长。
+     * 只看前者是不够的——某条死路被取出后没有产生任何子候选时，
+     * 必须靠版本号才能确认"确实没有进展"，否则会过早停机导致漏解。
      */
     public int solve() {
-        throw new UnsupportedOperationException(
-                "TODO: 调度 " + sources.size() + " 个知识源，直到黑板到达稳定态");
+        return solve(true);
+    }
+
+    /**
+     * 同上，但可以只求第一个解。
+     *
+     * @param findAll {@code true} = 求全部解；{@code false} = 找到第一个解就停
+     * @return 找到的解的数量
+     */
+    public int solve(boolean findAll) {
+        while (!blackboard.isFinished()) {
+            long before = blackboard.revision();
+
+            for (KnowledgeSource ks : sources) {
+                if (ks.canHandle(blackboard)) {
+                    ks.execute(blackboard);
+                }
+            }
+
+            if (!findAll && blackboard.solutionCount() > 0) {
+                break;   // 只求第一个解：黑板上出现解就收工
+            }
+
+            if (blackboard.revision() == before) {
+                blackboard.markFinished();   // 一轮下来毫无进展 ⇒ 到达稳定态
+            }
+        }
+        return blackboard.solutionCount();
     }
 }

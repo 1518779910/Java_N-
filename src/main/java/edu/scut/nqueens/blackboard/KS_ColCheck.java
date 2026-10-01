@@ -20,6 +20,7 @@
 package edu.scut.nqueens.blackboard;
 
 import edu.scut.nqueens.common.BitVectorPruner;
+import edu.scut.nqueens.common.PartialSolution;
 
 /**
  * 列冲突检查知识源（KS_ColCheck）：判断待放置的位置是否与已放置的皇后同列。
@@ -56,13 +57,41 @@ public final class KS_ColCheck implements KnowledgeSource {
         return "KS_ColCheck";
     }
 
+    /**
+     * 触发条件：黑板上还有未放满的候选路径可以继续扩展。
+     * 只读黑板，不修改任何东西——因此用 {@code peekCandidate} 而不是 {@code takeCandidate}。
+     */
     @Override
     public boolean canHandle(BlackboardState blackboard) {
-        throw new UnsupportedOperationException("TODO: 判断黑板当前是否有需要做列冲突检查的候选（只看黑板）");
+        PartialSolution top = blackboard.peekCandidate();
+        return top != null && !top.isComplete();
     }
 
+    /**
+     * 取出栈顶这条路径，把它的下一行展开成 N 个候选：
+     * 每一列都交给全组统一的 {@link BitVectorPruner} 做剪枝（列 + 两条对角线一次判定），
+     * 通过的子路径压回工作区，冲突的返回 {@code null} 直接丢弃。
+     */
     @Override
     public void execute(BlackboardState blackboard) {
-        throw new UnsupportedOperationException("TODO: 用 pruner 检查列冲突，把结论写回黑板");
+        PartialSolution current = blackboard.takeCandidate();
+        if (current == null || current.isComplete()) {
+            return;   // canHandle 已保证不会走到这里，防御性返回
+        }
+
+        // 把"当前正在扩展的路径"同步到黑板的棋盘位向量与搜索深度上，
+        // 让黑板内容与 C&C 图的标注保持一致（这一步是黑板内容的变更，会影响 revision）
+        blackboard.updateBoardState(
+                current.state() != null ? current.state() : pruner.initial(current.n()));
+        blackboard.setDepth(current.row());
+
+        // 展开下一行：等价于递归回溯里的 for (int col = 0; col < n; col++)
+        int row = current.row();
+        for (int col = 0; col < current.n(); col++) {
+            PartialSolution child = current.place(col, pruner);
+            if (child != null) {
+                blackboard.publishCandidate(child);
+            }
+        }
     }
 }

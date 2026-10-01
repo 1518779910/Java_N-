@@ -57,10 +57,25 @@ public final class CollectorFilter extends Filter<ValidSolution, Result> {
         return collectedCount.get();
     }
 
+    /**
+     * 判定完整解、编号、计数，包装成 {@link Result} 写向下游。
+     *
+     * <p>如果收到没放满的部分解，说明上游违反了契约——这里<b>抛出异常而不是静默丢弃</b>：
+     * 静默丢弃会让实验数据悄悄少掉几个解，比直接崩溃难查得多。
+     * 异常会由 {@link Filter#run()} 捕获、记入 {@code failure}，并让整条链正常收尾，
+     * 最后在装配器 join 之后原样抛出。
+     */
     @Override
     protected void process(ValidSolution item) throws InterruptedException {
-        throw new UnsupportedOperationException(
-                "TODO: 判定完整解、按序号包装成 Result 写向下游，同时累计解的数量（当前已收集 "
-                        + collectedCount.get() + " 个）");
+        if (!item.isComplete()) {
+            throw new IllegalStateException(
+                    "收集过滤器收到未完成的部分解（row=" + item.row() + "/" + item.n()
+                            + "），上游 ValidatorFilter 的行为不符合约定");
+        }
+
+        // 先自增再使用：第一个解的序号是 1（Result 的构造器要求 index >= 1）
+        long index = collectedCount.incrementAndGet();
+        Solution solution = item.partial().toSolution();
+        out().put(new Result(Math.toIntExact(index), solution));
     }
 }

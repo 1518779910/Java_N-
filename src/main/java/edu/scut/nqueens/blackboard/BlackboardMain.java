@@ -21,6 +21,8 @@ import java.io.PrintStream;
 import java.util.List;
 
 import edu.scut.nqueens.common.BitVectorPruner;
+import edu.scut.nqueens.common.BitVectorPrunerImpl;
+import edu.scut.nqueens.common.PartialSolution;
 
 /**
  * 黑板架构的装配与启动入口。
@@ -74,9 +76,33 @@ public final class BlackboardMain {
      * @return 解的数量
      */
     public static int run(int n, boolean findAll, PrintStream out) {
-        throw new UnsupportedOperationException(
-                "TODO: 装配黑板存储区、三个知识源与控制器并运行（N=" + n + "，"
-                        + (findAll ? "全部解" : "首个解") + "）");
+        // 1. 黑板存储区：全系统唯一的共享状态
+        BlackboardState blackboard = new BlackboardState(n);
+
+        // 2. 全组统一的剪枝实现。三个知识源注入的是同一个实例——
+        //    它无状态，所以被多个知识源同时持有不会产生共享可变状态。
+        BitVectorPruner pruner = new BitVectorPrunerImpl();
+
+        // 3. 三个知识源。注意它们之间没有任何引用，各自只拿到黑板所必需的信息：
+        //    两个检查知识源需要 pruner，解判定知识源连 pruner 都不需要。
+        List<KnowledgeSource> sources = List.of(
+                new KS_ColCheck(pruner),
+                new KS_DiagCheck(pruner),
+                new KS_SolutionCheck());
+
+        // 4. 启动时先往黑板上放一个"待求解的问题"：空解（一行都还没放，搜索起点）
+        blackboard.publishCandidate(new PartialSolution(n));
+
+        // 5. 控制器是唯一持有知识源集合的组件，由它调度直到黑板到达稳定态
+        BlackboardController controller = new BlackboardController(blackboard, sources);
+
+        long startMillis = System.currentTimeMillis();
+        int count = controller.solve(findAll);
+        long elapsed = System.currentTimeMillis() - startMillis;
+
+        // 阶段3 的汇总行：架构名 / N / 解数 / 耗时
+        out.printf("[blackboard] N=%d 解数=%d 耗时=%d ms%n", n, count, elapsed);
+        return count;
     }
 
     /** 便于单架构调试：java -cp target/classes edu.scut.nqueens.blackboard.BlackboardMain --n=8 */

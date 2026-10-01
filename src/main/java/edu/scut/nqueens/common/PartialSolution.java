@@ -101,7 +101,22 @@ public final class PartialSolution {
      * @return 放置后的新部分解
      */
     public PartialSolution place(int col, BitVectorPruner pruner) {
-        throw new UnsupportedOperationException("TODO: 生成在第 " + row + " 行 " + col + " 列放置皇后的子部分解");
+        // 起点（row == 0）时 state 尚未初始化，由第一次放置负责建出空棋盘
+        BitVectorBoardState current = (state != null) ? state : pruner.initial(columns.length);
+
+        // 冲突则返回 null，由调用方（过滤器 / 知识源）决定如何跳过这个分支
+        if (!pruner.canPlace(current, row, col)) {
+            return null;
+        }
+
+        // 推进位向量状态：返回新对象，current 保持不变
+        BitVectorBoardState next = pruner.place(current, row, col);
+
+        // 拷贝列号数组并写入本行列号——不碰本对象的 columns，保持不可变语义
+        int[] nextColumns = columns.clone();
+        nextColumns[row] = col;
+
+        return new PartialSolution(nextColumns, row + 1, next);
     }
 
     /** 若已放满 N 行，转换为解对象。 */

@@ -17,12 +17,14 @@
  * ============================================================ */
 package edu.scut.nqueens.common;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Random;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -37,9 +39,7 @@ class BitVectorPrunerTest {
 
     private final BitVectorPruner pruner = new BitVectorPrunerImpl();
 
-    @Test
-    @Disabled("TODO: 待 BitVectorPrunerImpl 实现后启用")
-    @DisplayName("初始状态没有任何占用，深度为 0")
+    @Test    @DisplayName("初始状态没有任何占用，深度为 0")
     void initialStateIsEmpty() {
         BitVectorBoardState state = pruner.initial(8);
         assertEquals(0, state.columnMask(), "初始列占用应为 0");
@@ -48,18 +48,16 @@ class BitVectorPrunerTest {
         assertEquals(0, state.depth(), "初始搜索深度应为 0");
     }
 
-    @Test
-    @Disabled("TODO: 待 BitVectorPrunerImpl 实现后启用")
-    @DisplayName("同列冲突被拒绝")
+    @Test    @DisplayName("同列冲突被拒绝")
     void rejectsSameColumn() {
         BitVectorBoardState state = pruner.place(pruner.initial(8), 0, 3);
         assertFalse(pruner.canPlace(state, 1, 3), "第 1 行第 3 列与第 0 行同列，应被拒绝");
-        assertTrue(pruner.canPlace(state, 1, 4), "第 1 行第 4 列不冲突，应被允许");
+        // 注意不能用第 4 列做对照：(0,3) 与 (1,4) 行距 1、列距 1，同在一条 ↘ 对角线上，
+        // 那是 rejectsBothDiagonals 覆盖的情形。第 5 列才是真正无冲突的。
+        assertTrue(pruner.canPlace(state, 1, 5), "第 1 行第 5 列不冲突，应被允许");
     }
 
-    @Test
-    @Disabled("TODO: 待 BitVectorPrunerImpl 实现后启用")
-    @DisplayName("两条对角线冲突都被拒绝")
+    @Test    @DisplayName("两条对角线冲突都被拒绝")
     void rejectsBothDiagonals() {
         BitVectorBoardState state = pruner.place(pruner.initial(8), 0, 3);
         // (1,2) 与 (0,3) 在同一条 ↙ 对角线上；(1,4) 与 (0,3) 在同一条 ↘ 对角线上
@@ -67,9 +65,7 @@ class BitVectorPrunerTest {
         assertFalse(pruner.canPlace(state, 1, 4), "(1,4) 与 (0,3) 同对角线，应被拒绝");
     }
 
-    @Test
-    @Disabled("TODO: 待 BitVectorPrunerImpl 实现后启用")
-    @DisplayName("place 不修改传入状态（不可变语义）")
+    @Test    @DisplayName("place 不修改传入状态（不可变语义）")
     void placeDoesNotMutateInput() {
         BitVectorBoardState initial = pruner.initial(8);
         pruner.place(initial, 0, 3);
@@ -78,24 +74,50 @@ class BitVectorPrunerTest {
     }
 
     @Test
-    @Disabled("TODO: 待 BitVectorPrunerImpl 实现后启用；该用例直接支撑报告中“剪枝策略等价”的论断")
     @DisplayName("与 O(n^2) 逐格扫描的参考实现判断结果一致")
     void matchesBruteForceReference() {
-        // TODO: 对 n=8 随机生成若干 (state, row, col)，同时用
-        //   (1) 本实现的 canPlace
-        //   (2) 逐格扫描的朴素实现（遍历所有已放置皇后比较列与两条对角线）
-        // 断言两者结论完全一致——这是"位向量剪枝没有算错"最直接的证据。
-        throw new UnsupportedOperationException("TODO: 与朴素参考实现对照");
+        // 随机走若干条路径：每一步同时用「位向量」和「朴素逐格扫描」两条路判断，
+        // 断言两者结论永远一致——这是"位向量剪枝没有算错"最直接的证据，
+        // 也是报告中"剪枝策略等价"论断的支撑材料。
+        // 种子固定，失败时可复现。
+        final int n = 8;
+        final Random random = new Random(20261001L);
+
+        for (int trial = 0; trial < 500; trial++) {
+            BitVectorBoardState state = pruner.initial(n);
+            List<int[]> placed = new ArrayList<>();   // 朴素参考的输入：已放置皇后的坐标
+
+            for (int row = 0; row < n; row++) {
+                int col = random.nextInt(n);
+
+                boolean viaBitVector = pruner.canPlace(state, row, col);
+                boolean viaScan = canPlaceByScan(placed, row, col);
+
+                assertEquals(viaScan, viaBitVector,
+                        "第 " + trial + " 轮 row=" + row + " col=" + col
+                                + " 两种实现结论不一致：朴素=" + viaScan + " 位向量=" + viaBitVector);
+
+                if (viaBitVector) {
+                    state = pruner.place(state, row, col);
+                    placed.add(new int[]{row, col});
+                }
+            }
+        }
     }
 
-    @Test
-    @Disabled("TODO: 待各架构求解器实现后启用")
-    @DisplayName("N=8 的解数量为 92（五种架构应给出相同结果）")
-    void eightQueensSolutionCount() {
-        // TODO: 调用某一种（或多于一种）架构的求解入口，断言解数 == 92。
-        // 五种架构都通过后，跨架构性能对比才有意义——结果都不对，比性能是没有意义的。
-        assertThrows(UnsupportedOperationException.class, () -> {
-            throw new UnsupportedOperationException("TODO");
-        });
+    /**
+     * 朴素参考实现：遍历所有已放置的皇后，逐条比较列与两条对角线，O(n²)。
+     * 故意用最直白的写法，让"位向量版本有没有算错"一眼可查。
+     */
+    private static boolean canPlaceByScan(List<int[]> placed, int row, int col) {
+        for (int[] queen : placed) {
+            if (queen[1] == col) {
+                return false;                                       // 同列
+            }
+            if (Math.abs(queen[0] - row) == Math.abs(queen[1] - col)) {
+                return false;                                       // 同对角线（行距 == 列距）
+            }
+        }
+        return true;
     }
 }

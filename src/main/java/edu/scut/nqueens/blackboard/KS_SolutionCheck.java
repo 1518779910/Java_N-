@@ -19,6 +19,8 @@
  * ============================================================ */
 package edu.scut.nqueens.blackboard;
 
+import edu.scut.nqueens.common.PartialSolution;
+
 /**
  * 解完整性判定知识源（KS_SolutionCheck）：判断黑板上当前的状态是否已经构成一个完整解，
  * 若是则把解写入结果区，并推动搜索继续（或回退）。
@@ -46,13 +48,31 @@ public final class KS_SolutionCheck implements KnowledgeSource {
         return "KS_SolutionCheck";
     }
 
+    /**
+     * 触发条件：栈顶这条路径已经放满 N 行，构成一个完整解。
+     *
+     * <p>它<b>不</b>检查列与对角线——那是另外两个知识源的规则。
+     * 之所以走到这里的一定是合法解，不是因为它调用过谁，而是因为
+     * <b>黑板上只可能存在已通过剪枝的路径</b>（不合法的路径根本不会被放上来）。
+     * 这就是"知识源互不通信，却仍能保证结果正确"的答案。
+     */
     @Override
     public boolean canHandle(BlackboardState blackboard) {
-        throw new UnsupportedOperationException("TODO: 判断黑板当前是否已构成完整解（只看黑板）");
+        PartialSolution top = blackboard.peekCandidate();
+        return top != null && top.isComplete();
     }
 
+    /**
+     * 取出这条完整路径，转成 {@link edu.scut.nqueens.common.Solution} 写入结果区。
+     * 取出即代表这条路径已处理完毕，工作区里不会再有它——
+     * 后续搜索自然从栈里剩下的回溯点继续。
+     */
     @Override
     public void execute(BlackboardState blackboard) {
-        throw new UnsupportedOperationException("TODO: 把完整解写入黑板结果区，并推进/回退搜索状态");
+        PartialSolution complete = blackboard.takeCandidate();
+        if (complete == null || !complete.isComplete()) {
+            return;   // canHandle 已保证不会走到这里，防御性返回
+        }
+        blackboard.publishSolution(complete.toSolution());
     }
 }

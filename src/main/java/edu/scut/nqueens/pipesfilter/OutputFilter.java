@@ -20,6 +20,7 @@ package edu.scut.nqueens.pipesfilter;
 import java.io.PrintStream;
 
 import edu.scut.nqueens.common.Result;
+import edu.scut.nqueens.common.Solution;
 
 /**
  * 结果输出过滤器：管道链的末端，把解打印到控制台或写入文件。
@@ -67,9 +68,38 @@ public final class OutputFilter extends Filter<Result, Void> {
         return printBoard;
     }
 
+    /**
+     * 输出一个结果条目。
+     *
+     * <p>本过滤器不维护任何计数器——"第几个解"由上游 {@code CollectorFilter} 编号后
+     * 通过 {@link Result#index()} 传进来。所以它是完全无状态的：
+     * 换个输出目标（控制台 / 文件 / CSV）不需要动一行逻辑。
+     */
     @Override
     protected void process(Result item) {
-        throw new UnsupportedOperationException(
-                "TODO: 输出第 " + item.index() + " 个解（N=" + item.n() + "，棋盘图=" + printBoard + "）");
+        sink.println("#" + item.index() + " " + item.solution());
+        if (printBoard) {
+            printBoard(item.solution());
+        }
+    }
+
+    /**
+     * 打印棋盘图：{@code Q} 表示皇后，{@code .} 表示空位。
+     * N=8 有 92 个解、N=12 有 14200 个，全打印出来日志会长到没法看，
+     * 因此只在棋盘小的时候启用（由装配器决定，见 {@code PipeFilterMain}）。
+     */
+    private void printBoard(Solution solution) {
+        int n = solution.n();
+        for (int row = 0; row < n; row++) {
+            StringBuilder line = new StringBuilder(2 * n);
+            for (int col = 0; col < n; col++) {
+                line.append(solution.columnAt(row) == col ? 'Q' : '.');
+                if (col < n - 1) {
+                    line.append(' ');
+                }
+            }
+            sink.println("    " + line);
+        }
+        sink.println();
     }
 }

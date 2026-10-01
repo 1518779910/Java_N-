@@ -17,6 +17,8 @@
  * ============================================================ */
 package edu.scut.nqueens.pipesfilter;
 
+import java.util.Optional;
+
 /**
  * 过滤器（组件）的统一基类。
  *
@@ -44,6 +46,16 @@ public abstract class Filter<I, O> implements Runnable {
     private final String name;
     private final Pipe<I> in;
     private final Pipe<O> out;
+
+    /**
+     * 本过滤器线程运行期间抛出的异常；正常结束为 {@code null}。
+     *
+     * <p>为什么需要它：流水线里任何一环出错，下游都会永远阻塞在空管道上等一个
+     * 永远不会到来的数据项。所以主循环捕获异常后必须做两件事——把 EOS 发下去让
+     * 下游正常收尾，同时把异常记在这里，由装配器在 {@code join()} 之后统一检查并抛出。
+     * 这样既不会死锁，也不会把错误悄悄咽掉、最后给出一个看着正常的错误解数。
+     */
+    private volatile Throwable failure;
 
     protected Filter(String name, Pipe<I> in, Pipe<O> out) {
         this.name = name;
@@ -76,20 +88,59 @@ public abstract class Filter<I, O> implements Runnable {
      */
     protected abstract void process(I item) throws InterruptedException;
 
+    /** 本过滤器线程抛出的异常；正常结束为 null。装配器在 join 之后检查它。 */
+    public final Throwable failure() {
+        return failure;
+    }
+
     /**
      * 过滤器主循环（由基类固定，子类不得覆写）。
      *
-     * <p>TODO（组员按自己负责的过滤器逐个实现 process 即可，主循环只需实现一次）：
+     * <p>子类只需要实现 {@link #process}，主循环全链共用这一份：
      * <pre>
-     *   若 in == null：                 // 源过滤器
-     *       调用一次 process(null)，结束
+     *   若 in == null：                 // 源过滤器，只执行一次
+     *       调用一次 process(null)
      *   否则：
-     *       循环 { item = in.take(); 若 item 是 EOS → 转发给 out 并跳出循环;
+     *       循环 { item = in.take();
+     *             若 item 是 EOS → 跳出循环（EOS 不在这一层转发）
      *             否则 process(item); }
+     *   最后：若有下游，把 EOS 转发给 out
      * </pre>
+     *
+     * <p><b>为什么 EOS 一定要转发：</b>下游过滤器无法预知上游是否还会产出数据，
+     * 它只能一直阻塞在 {@code take()}。漏掉转发这一步，症状是"程序跑完了但线程不退出、
+     * {@code join()} 永远等下去"——所以 EOS 必须沿管道链一路传到最后。
      */
     @Override
     public final void run() {
-        throw new UnsupportedOperationException("TODO: 实现过滤器主循环：" + name);
+        try {
+            if (in == null) {
+                // 源过滤器：没有上游可读，只被调用一次，一次性产出全部初始数据
+                process(null);
+            } else {
+                while (true) {
+                    Optional<I> item = in.take();
+                    if (item.isEmpty()) {
+                        break;   // 读到 EOS：上游结束，本过滤器也结束
+                    }
+                    process(item.get());
+                }
+            }
+            forwardEndOfStream();
+        } catch (InterruptedException e) {
+            // 被主线程中断（只求第一个解时的提前收工），正常退出，保留中断状态
+            Thread.currentThread().interrupt();
+        } catch (RuntimeException e) {
+            // 出错也必须把 EOS 发下去，否则下游会永远等一个不会再来的数据项
+            failure = e;
+            forwardEndOfStream();
+        }
+    }
+
+    /** 把 EOS 传给下游。汇过滤器（out == null）没有下游，什么也不做。 */
+    private void forwardEndOfStream() {
+        if (out != null) {
+            out.close();
+        }
     }
 }
