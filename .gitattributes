@@ -1,0 +1,7 @@
+# Shell 脚本必须保持 LF。Windows 上若检出成 CRLF，shebang 会带上 \r，
+# 执行时变成 "bash\r: bad interpreter"，而且每行末尾的 \r 会污染参数。
+*.sh text eol=lf
+
+# Windows 批处理脚本按字节解析，保持检出为 CRLF。
+# 注意 verify.bat 另需以 GBK 编码保存（见该文件头部的说明）。
+*.bat text eol=crlf
