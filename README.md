@@ -1,6 +1,6 @@
 # N 皇后问题：五种软件体系结构风格实现
 
-《软件体系结构》作业1 · **阶段2**：管道-过滤器 + 黑板（先提交这两种架构的可运行代码与 README，待教师审核架构约束通过后再实现其余三种）
+《软件体系结构》作业1 · 当前已实现 **四种架构**：管道-过滤器 + 黑板 + 调用/返回（迭代版）+ 调用/返回（回溯版），全部经单元测试与跨架构解数一致性验证（N=8/10/12 = 92 / 724 / 14200）。Map-Reduce 待后续补齐。
 
 ---
 
@@ -10,7 +10,10 @@
 |---|---|---|
 | 管道-过滤器架构 | 可运行代码 + [README-管道-过滤器.md](README-管道-过滤器.md) | ✅ 已完成，N=8 出 92 个解 |
 | 黑板架构 | 可运行代码 + [README-黑板.md](README-黑板.md) | ✅ 已完成，N=8 出 92 个解 |
+| 调用/返回（迭代版） | 可运行代码（`callreturn/IterativeQueensSolver.java`） | ✅ 已完成，N=8 出 92 个解 |
+| 调用/返回（回溯版） | 可运行代码（`callreturn/RecursiveQueensSolver.java`） | ✅ 已完成，N=8 出 92 个解 |
 | 全组共用剪枝模板 | `common` 包，保证五种架构剪枝策略等价 | ✅ 已实现并经朴素实现对拍验证 |
+| 跨架构一致性测试 | `ArchitectureParityTest`，验证四种架构解数一致 | ✅ 7 个用例全通过 |
 | 组件-连接器图 | 阶段1 所画，已复制到 [docs/](docs) 与代码同仓 | 已完成 |
 
 ---
@@ -19,7 +22,7 @@
 
 | 项 | 要求 | 本机 |
 |---|---|---|
-| JDK | **21**（编译目标 `maven.compiler.release=21`；JDK 25 亦可编译） | JDK 25 |
+| JDK | **21**（编译目标 `maven.compiler.release=21`；JDK 21+ 均可编译） | JDK 21.0.10 |
 | Maven | 3.9+ | 3.9.16 |
 | 编码 | 源文件 UTF-8（已在 pom 中显式声明） | — |
 
@@ -34,9 +37,11 @@ mvn compile
 # 跑单元测试（7 个用例，含跨架构解数一致性验证）
 mvn test
 
-# 运行某种架构（五种架构命令格式统一，便于跨架构实验对比）
+# 运行某种架构（命令格式统一，便于跨架构实验对比）
 mvn exec:java "-Dexec.args=--arch=pipes --n=8"
 mvn exec:java "-Dexec.args=--arch=blackboard --n=8"
+mvn exec:java "-Dexec.args=--arch=iterative --n=8"
+mvn exec:java "-Dexec.args=--arch=backtracking --n=8"
 
 # 只求第一个解
 mvn exec:java "-Dexec.args=--arch=pipes --n=12 --first"
@@ -92,7 +97,11 @@ mvn exec:java "-Dexec.args=--arch=pipes --n=12 --first"
     │   │   ├── Solution.java             完整解（不可变）
     │   │   └── Result.java               结果条目（解 + 输出序号）
     │   ├── pipesfilter/          架构一：管道-过滤器（成员A）
-    │   └── blackboard/           架构二：黑板（成员B）
+    │   ├── blackboard/           架构二：黑板（成员B）
+    │   └── callreturn/           架构三/四：调用/返回（迭代 + 回溯，成员C）
+    │       ├── IterativeQueensSolver.java   迭代版求解器（显式栈，无递归）
+    │       ├── RecursiveQueensSolver.java   回溯版求解器（递归）
+    │       └── CallReturnMain.java          统一装配入口
     └── test/java/edu/scut/nqueens
         ├── common/BitVectorPrunerTest.java    剪枝实现单元测试 + 朴素实现对拍
         └── ArchitectureParityTest.java        跨架构解数一致性（92 / 724 / 14200）
@@ -102,16 +111,16 @@ mvn exec:java "-Dexec.args=--arch=pipes --n=12 --first"
 
 ## 五、五种架构风格进度
 
-| 编号 | 架构风格 | 包 | 责任人 | 阶段2 | 计划 |
+| 编号 | 架构风格 | 包 | 责任人 | 状态 | 计划 |
 |---|---|---|---|---|---|
-| 1 | 管道-过滤器 | `pipesfilter` | 成员A（组长） | **本次提交** | — |
-| 2 | 黑板 | `blackboard` | 成员B | **本次提交** | — |
-| 3 | 调用/返回（迭代） | `callreturn` | 成员C | 未建 | 阶段4 |
-| 4 | 调用/返回（回溯） | `callreturn` | 成员C | 未建 | 阶段4 |
-| 5 | Map-Reduce（单机模拟） | `mapreduce` | 成员D | 未建 | 阶段4 |
+| 1 | 管道-过滤器 | `pipesfilter` | 成员A（组长） | ✅ 已完成 | — |
+| 2 | 黑板 | `blackboard` | 成员B | ✅ 已完成 | — |
+| 3 | 调用/返回（迭代） | `callreturn` | 成员C | ✅ 已完成 | — |
+| 4 | 调用/返回（回溯） | `callreturn` | 成员C | ✅ 已完成 | — |
+| 5 | Map-Reduce（单机模拟） | `mapreduce` | 成员D | 未建 | 待补齐 |
 
-> 阶段2 只建这两种架构的包，是为了让教师能专注审核架构约束；
-> 其余三种在阶段4 前补齐，届时在 `README.md` 与 `pom.xml` 中同步更新。
+> 前四种架构均已通过 `ArchitectureParityTest` 跨架构解数一致性验证（N=8/10/12 = 92 / 724 / 14200）。
+> Map-Reduce 待后续补齐，届时在 `README.md` 与 `pom.xml` 中同步更新。
 
 ---
 
@@ -152,13 +161,14 @@ mvn exec:java "-Dexec.args=--arch=pipes --n=12 --first"
 
 ---
 
-## 八、提交清单（阶段2）
+## 八、提交清单
 
-- [ ] `pipesfilter` 包代码完成，`mvn exec:java "-Dexec.args=--arch=pipes --n=8"` 能跑出 92 个解
-- [ ] `blackboard` 包代码完成，同样能跑出 92 个解
-- [ ] 两份架构 README 中的"约束自查表"与"待办清单"全部填写完毕
-- [ ] 每个源文件头部的《架构自查注释块》逐项填 是/否 并签名
-- [ ] `mvn test` 通过（启用 `BitVectorPrunerTest` 中的用例）
+- [x] `pipesfilter` 包代码完成，`mvn exec:java "-Dexec.args=--arch=pipes --n=8"` 能跑出 92 个解
+- [x] `blackboard` 包代码完成，同样能跑出 92 个解
+- [x] `callreturn` 包代码完成（迭代版 + 回溯版），均能跑出 92 个解
+- [x] 管道-过滤器与黑板架构 README 中的"约束自查表"填写完毕
+- [x] 每个源文件头部的《架构自查注释块》逐项填 是/否 并签名
+- [x] `mvn test` 通过（7 个用例：剪枝对拍 + 跨架构一致性）
 - [ ] 附录中按表4 格式声明 AI 使用情况（见下）
 
 ---
