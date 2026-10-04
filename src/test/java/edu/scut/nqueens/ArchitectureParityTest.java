@@ -27,6 +27,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import edu.scut.nqueens.blackboard.BlackboardMain;
+import edu.scut.nqueens.callreturn.CallReturnMain;
 import edu.scut.nqueens.pipesfilter.PipeFilterMain;
 
 /**
@@ -50,19 +51,31 @@ class ArchitectureParityTest {
     private static final PrintStream DISCARD = new PrintStream(OutputStream.nullOutputStream());
 
     @Test
-    @DisplayName("N=8：管道-过滤器与黑板都给出 92 个解")
-    void bothArchitecturesAgreeOnEightQueens() {
+    @DisplayName("N=8：四种架构都给出 92 个解")
+    void allArchitecturesAgreeOnEightQueens() {
         assertEquals(92L, PipeFilterMain.run(8, true, DISCARD), "管道-过滤器架构 N=8 的解数");
         assertEquals(92, BlackboardMain.run(8, true, DISCARD), "黑板架构 N=8 的解数");
+        assertEquals(92L, CallReturnMain.run(8, true, DISCARD, CallReturnMain.SolverMode.ITERATIVE),
+                "调用/返回（迭代版）架构 N=8 的解数");
+        assertEquals(92L, CallReturnMain.run(8, true, DISCARD, CallReturnMain.SolverMode.RECURSIVE),
+                "调用/返回（回溯版）架构 N=8 的解数");
     }
 
     @Test
-    @DisplayName("N=10 与 N=12：两种架构的解数一致（724 / 14200）")
-    void bothArchitecturesAgreeOnLargerBoards() {
+    @DisplayName("N=10 与 N=12：四种架构的解数一致（724 / 14200）")
+    void allArchitecturesAgreeOnLargerBoards() {
         assertEquals(724L, PipeFilterMain.run(10, true, DISCARD), "管道-过滤器架构 N=10 的解数");
         assertEquals(724, BlackboardMain.run(10, true, DISCARD), "黑板架构 N=10 的解数");
+        assertEquals(724L, CallReturnMain.run(10, true, DISCARD, CallReturnMain.SolverMode.ITERATIVE),
+                "调用/返回（迭代版）架构 N=10 的解数");
+        assertEquals(724L, CallReturnMain.run(10, true, DISCARD, CallReturnMain.SolverMode.RECURSIVE),
+                "调用/返回（回溯版）架构 N=10 的解数");
 
         assertEquals(14200L, PipeFilterMain.run(12, true, DISCARD), "管道-过滤器架构 N=12 的解数");
         assertEquals(14200, BlackboardMain.run(12, true, DISCARD), "黑板架构 N=12 的解数");
+        assertEquals(14200L, CallReturnMain.run(12, true, DISCARD, CallReturnMain.SolverMode.ITERATIVE),
+                "调用/返回（迭代版）架构 N=12 的解数");
+        assertEquals(14200L, CallReturnMain.run(12, true, DISCARD, CallReturnMain.SolverMode.RECURSIVE),
+                "调用/返回（回溯版）架构 N=12 的解数");
     }
 }

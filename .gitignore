@@ -1,6 +1,9 @@
 # Maven 构建产物
 target/
 
+# 本地安装的 Maven（不纳入版本管理）
+tools/
+
 # IntelliJ IDEA
 .idea/
 *.iml

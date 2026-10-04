@@ -22,6 +22,7 @@ package edu.scut.nqueens;
 import java.io.PrintStream;
 
 import edu.scut.nqueens.blackboard.BlackboardMain;
+import edu.scut.nqueens.callreturn.CallReturnMain;
 import edu.scut.nqueens.pipesfilter.PipeFilterMain;
 
 /**
@@ -87,9 +88,12 @@ public final class Main {
             long solutions = switch (arch) {
                 case "pipes", "pipe-filter" -> PipeFilterMain.run(n, findAll, OUT);
                 case "blackboard" -> BlackboardMain.run(n, findAll, OUT);
-                case "iterative", "call-return-iterative", "backtracking", "call-return-backtracking",
-                     "mapreduce" -> throw new UnsupportedOperationException(
-                        "该架构风格属于后续阶段实现（阶段2 只交付管道-过滤器与黑板两种）。");
+                case "iterative", "call-return-iterative" ->
+                        CallReturnMain.run(n, findAll, OUT, CallReturnMain.SolverMode.ITERATIVE);
+                case "backtracking", "call-return-backtracking" ->
+                        CallReturnMain.run(n, findAll, OUT, CallReturnMain.SolverMode.RECURSIVE);
+                case "mapreduce" -> throw new UnsupportedOperationException(
+                        "该架构风格属于后续阶段实现（Map-Reduce 尚未交付）。");
                 default -> throw new IllegalArgumentException("未知架构风格：" + arch);
             };
             long elapsed = System.currentTimeMillis() - startMillis;

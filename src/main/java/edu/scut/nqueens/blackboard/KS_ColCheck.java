@@ -78,7 +78,6 @@ public final class KS_ColCheck implements KnowledgeSource {
         blackboard.setDepth(current.row());
 
         // 展开下一行：等价于递归回溯里的 for (int col = 0; col < n; col++)
-        int row = current.row();
         for (int col = 0; col < current.n(); col++) {
             PartialSolution child = current.place(col, pruner);
             if (child != null) {
