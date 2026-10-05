@@ -123,7 +123,7 @@ check() {
     fi
 }
 
-for arch in pipes blackboard; do
+for arch in pipes blackboard mapreduce; do
     for n in 8 10 12; do
         case $n in
             8)  check "$arch" 8 92 ;;
@@ -133,17 +133,18 @@ for arch in pipes blackboard; do
     done
 done
 
-# --first：只求第一个解，两种架构都应报告 1 个解并迅速返回
+# --first：只求第一个解，三种架构都应报告 1 个解并迅速返回
 echo
 check pipes      12 1 --first
 check blackboard 12 1 --first
+check mapreduce  12 1 --first
 
 # ---------------------------------------------------------- 汇总
 echo
 echo "=============================================================="
 if [ "$FAIL" -eq 0 ]; then
     printf ' 全部通过：%d 项\n' "$PASS"
-    echo " 两种架构在 N=8/10/12 上解数一致，与已知值相符。"
+    echo " 三种架构在 N=8/10/12 上解数一致，与已知值相符。"
     echo "=============================================================="
     exit 0
 else

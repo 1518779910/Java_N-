@@ -8,7 +8,7 @@ rem  做四件事：
 rem     1. 打印运行环境（JDK / Maven 版本）
 rem     2. 编译工程
 rem     3. 跑单元测试（含跨架构解数一致性断言）
-rem     4. 逐个运行两种架构 x N=8/10/12，自动核对解数
+rem     4. 逐个运行三种架构 x N=8/10/12，自动核对解数
 rem
 rem  全部通过时退出码为 0，有失败项为 1。
 rem
@@ -67,8 +67,12 @@ call :check pipes      12 14200
 call :check blackboard 8  92
 call :check blackboard 10 724
 call :check blackboard 12 14200
+call :check mapreduce  8  92
+call :check mapreduce  10 724
+call :check mapreduce  12 14200
 call :check pipes      12 1 --first
 call :check blackboard 12 1 --first
+call :check mapreduce  12 1 --first
 goto summary
 
 
@@ -120,7 +124,7 @@ echo.
 echo ==============================================================
 if not "%FAIL%"=="0" goto failed
 echo  全部通过：%PASS% 项
-echo  两种架构在 N=8/10/12 上解数一致，与已知值相符。
+echo  三种架构在 N=8/10/12 上解数一致，与已知值相符。
 echo ==============================================================
 pause
 exit /b 0

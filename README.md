@@ -1,6 +1,6 @@
 # N 皇后问题：五种软件体系结构风格实现
 
-《软件体系结构》作业1 · 当前已实现 **四种架构**：管道-过滤器 + 黑板 + 调用/返回（迭代版）+ 调用/返回（回溯版），全部经单元测试与跨架构解数一致性验证（N=8/10/12 = 92 / 724 / 14200）。Map-Reduce 待后续补齐。
+《软件体系结构》作业1 · 五种架构全部完成：管道-过滤器 + 黑板 + 调用/返回（迭代版）+ 调用/返回（回溯版）+ Map-Reduce（单机模拟），全部经单元测试与跨架构解数一致性验证（N=8/10/12 = 92 / 724 / 14200）。
 
 ---
 
@@ -12,8 +12,9 @@
 | 黑板架构 | 可运行代码 + [README-黑板.md](README-黑板.md) | ✅ 已完成，N=8 出 92 个解 |
 | 调用/返回（迭代版） | 可运行代码（`callreturn/IterativeQueensSolver.java`） | ✅ 已完成，N=8 出 92 个解 |
 | 调用/返回（回溯版） | 可运行代码（`callreturn/RecursiveQueensSolver.java`） | ✅ 已完成，N=8 出 92 个解 |
+| Map-Reduce（单机模拟） | 可运行代码（`mapreduce/MapReduceMain.java`） | ✅ 已完成，N=8 出 92 个解 |
 | 全组共用剪枝模板 | `common` 包，保证五种架构剪枝策略等价 | ✅ 已实现并经朴素实现对拍验证 |
-| 跨架构一致性测试 | `ArchitectureParityTest`，验证四种架构解数一致 | ✅ 7 个用例全通过 |
+| 跨架构一致性测试 | `ArchitectureParityTest`，验证五种架构解数一致 | ✅ 7 个用例全通过 |
 | 组件-连接器图 | 阶段1 所画，已复制到 [docs/](docs) 与代码同仓 | 已完成 |
 
 ---
@@ -42,6 +43,7 @@ mvn exec:java "-Dexec.args=--arch=pipes --n=8"
 mvn exec:java "-Dexec.args=--arch=blackboard --n=8"
 mvn exec:java "-Dexec.args=--arch=iterative --n=8"
 mvn exec:java "-Dexec.args=--arch=backtracking --n=8"
+mvn exec:java "-Dexec.args=--arch=mapreduce --n=8"
 
 # 只求第一个解
 mvn exec:java "-Dexec.args=--arch=pipes --n=12 --first"
@@ -98,10 +100,18 @@ mvn exec:java "-Dexec.args=--arch=pipes --n=12 --first"
     │   │   └── Result.java               结果条目（解 + 输出序号）
     │   ├── pipesfilter/          架构一：管道-过滤器（成员A）
     │   ├── blackboard/           架构二：黑板（成员B）
-    │   └── callreturn/           架构三/四：调用/返回（迭代 + 回溯，成员C）
-    │       ├── IterativeQueensSolver.java   迭代版求解器（显式栈，无递归）
-    │       ├── RecursiveQueensSolver.java   回溯版求解器（递归）
-    │       └── CallReturnMain.java          统一装配入口
+    │   ├── callreturn/           架构三/四：调用/返回（迭代 + 回溯，成员C）
+    │   │   ├── IterativeQueensSolver.java   迭代版求解器（显式栈，无递归）
+    │   │   ├── RecursiveQueensSolver.java   回溯版求解器（递归）
+    │   │   └── CallReturnMain.java          统一装配入口
+    │   └── mapreduce/            架构五：Map-Reduce（单机模拟，成员D）
+    │       ├── KeyValuePair.java        中间 <K,V> 对（不可变 record）
+    │       ├── Mapper.java              Map 阶段抽象接口
+    │       ├── Reducer.java             Reduce 阶段抽象接口
+    │       ├── MapReduceFramework.java  单机框架（Driver + Map + Shuffle + Reduce）
+    │       ├── NQueensMapper.java       N 皇后 Mapper：按第 0 行列号切分搜索空间
+    │       ├── NQueensReducer.java      N 皇后 Reducer：组内按字典序排序后输出
+    │       └── MapReduceMain.java       统一装配入口（Driver 角色）
     └── test/java/edu/scut/nqueens
         ├── common/BitVectorPrunerTest.java    剪枝实现单元测试 + 朴素实现对拍
         └── ArchitectureParityTest.java        跨架构解数一致性（92 / 724 / 14200）
@@ -117,10 +127,9 @@ mvn exec:java "-Dexec.args=--arch=pipes --n=12 --first"
 | 2 | 黑板 | `blackboard` | 成员B | ✅ 已完成 | — |
 | 3 | 调用/返回（迭代） | `callreturn` | 成员C | ✅ 已完成 | — |
 | 4 | 调用/返回（回溯） | `callreturn` | 成员C | ✅ 已完成 | — |
-| 5 | Map-Reduce（单机模拟） | `mapreduce` | 成员D | 未建 | 待补齐 |
+| 5 | Map-Reduce（单机模拟） | `mapreduce` | 成员D | ✅ 已完成 | — |
 
-> 前四种架构均已通过 `ArchitectureParityTest` 跨架构解数一致性验证（N=8/10/12 = 92 / 724 / 14200）。
-> Map-Reduce 待后续补齐，届时在 `README.md` 与 `pom.xml` 中同步更新。
+> 五种架构均已通过 `ArchitectureParityTest` 跨架构解数一致性验证（N=8/10/12 = 92 / 724 / 14200）。
 
 ---
 
@@ -166,6 +175,7 @@ mvn exec:java "-Dexec.args=--arch=pipes --n=12 --first"
 - [x] `pipesfilter` 包代码完成，`mvn exec:java "-Dexec.args=--arch=pipes --n=8"` 能跑出 92 个解
 - [x] `blackboard` 包代码完成，同样能跑出 92 个解
 - [x] `callreturn` 包代码完成（迭代版 + 回溯版），均能跑出 92 个解
+- [x] `mapreduce` 包代码完成，同样能跑出 92 个解
 - [x] 管道-过滤器与黑板架构 README 中的"约束自查表"填写完毕
 - [x] 每个源文件头部的《架构自查注释块》逐项填 是/否 并签名
 - [x] `mvn test` 通过（7 个用例：剪枝对拍 + 跨架构一致性）
